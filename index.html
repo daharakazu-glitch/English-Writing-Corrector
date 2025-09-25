@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>英作文添削アプリ (B2 Level)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* 薄いブルーグレーの背景 */
+        }
+        .app-container {
+            max-width: 900px;
+            margin: 2rem auto;
+            padding: 1.5rem;
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        }
+        .app-title {
+            color: #2c5282; /* 濃い青 */
+        }
+        .app-button {
+            background-color: #3b82f6; /* Tailwind blue-500 */
+            transition: background-color: 0.3s ease;
+        }
+        .app-button:hover {
+            background-color: #2563eb; /* Tailwind blue-600 */
+        }
+        .app-button:disabled {
+            background-color: #9ca3af; /* Tailwind gray-400 */
+            cursor: not-allowed;
+        }
+        .feedback-section {
+            background-color: #f9fafb; /* Tailwind gray-50 */
+            border-left: 4px solid #3b82f6; /* 青のアクセント */
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-top: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+        .feedback-section h2 {
+            color: #1e3a8a; /* セクションタイトルのための濃い青 */
+        }
+        table th, table td {
+            padding: 0.75rem 1rem; /* テーブルセルの余白を増やす */
+            border: 1px solid #e5e7eb; /* テーブルの薄い境界線 */
+        }
+        table th {
+            background-color: #eef2ff; /* テーブルヘッダー用の薄いインディゴ */
+        }
+        #loadingIndicator .spinner {
+            border-top-color: #3b82f6;
+        }
+        /* レスポンシブ対応 */
+        @media (max-width: 768px) {
+            .app-container {
+                margin: 1rem;
+                padding: 1rem;
+            }
+            table {
+                font-size: 0.875rem; /* 小画面でのテーブルのフォントを小さくする */
+            }
+            table th, table td {
+                padding: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <header class="text-center mb-10">
+            <h1 class="text-3xl md:text-4xl font-bold app-title">English Writing Corrector</h1>
+            <p class="text-md text-gray-600 mt-2">CEFR B2 Level Support</p>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <div>
+                <label for="writingTopic" class="block text-lg font-medium text-gray-700 mb-2">トピック（任意）:</label>
+                <input type="text" id="writingTopic" class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-base" placeholder="例：My last vacation">
+            </div>
+            <div>
+                <label for="wordCountLimit" class="block text-lg font-medium text-gray-700 mb-2">語数制限（任意）:</label>
+                <input type="number" id="wordCountLimit" min="1" class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-base" placeholder="例：100">
+            </div>
+        </div>
+
+        <div class="mb-8">
+            <label for="studentText" class="block text-lg font-medium text-gray-700 mb-2">ここに英文を入力してください:</label>
+            <textarea id="studentText" rows="8" class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-base" placeholder="英文をここに入力または貼り付け..."></textarea>
+            <div class="text-right text-sm text-gray-500 mt-1" id="wordCounter">0 words</div>
+        </div>
+
+        <button id="correctButton" class="w-full app-button text-white font-semibold py-3 px-4 rounded-lg text-lg shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50">
+            添削する
+        </button>
+
+        <div id="loadingIndicator" class="text-center my-6" style="display: none;">
+            <div class="spinner animate-spin rounded-full h-10 w-10 border-4 border-gray-200 border-t-blue-500 mx-auto"></div>
+            <p class="text-blue-600 font-semibold mt-3">文章を分析中です。お待ちください...</p>
+        </div>
+        
+        <div id="errorMessage" class="my-4 p-4 bg-red-100 text-red-700 border border-red-300 rounded-lg text-center" style="display: none;"></div>
+
+        <div id="resultsSection" class="mt-10 space-y-8" style="display: none;">
+            
+            <section id="step1" class="feedback-section">
+                <h2 class="text-2xl font-semibold mb-4">1. あなたの文章（間違いの箇所を強調表示）</h2>
+                <div id="restatedText" class="text-gray-800 leading-relaxed p-3 bg-white rounded border border-gray-200"></div>
+            </section>
+
+            <section id="step2" class="feedback-section">
+                <h2 class="text-2xl font-semibold mb-4">2. 修正後の文章</h2>
+                <div id="correctedTextOutput" class="text-gray-800 leading-relaxed p-3 bg-white rounded border border-gray-200"></div>
+            </section>
+
+            <section id="step3" class="feedback-section">
+                <h2 class="text-2xl font-semibold mb-4">3. 修正点と解説</h2>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-300 border border-gray-300 rounded-lg shadow-sm">
+                        <thead class="bg-gray-100">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">元の表現</th>
+                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">修正後の表現</th>
+                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">理由</th>
+                            </tr>
+                        </thead>
+                        <tbody id="correctionTableBody" class="bg-white divide-y divide-gray-200">
+                            <!-- ここにJavaScriptで修正内容が挿入されます -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="step4" class="feedback-section">
+                <h2 class="text-2xl font-semibold mb-4">4. その他の表現方法</h2>
+                <ul id="alternativeAnswersList" class="list-disc list-inside text-gray-800 space-y-2 p-3 bg-white rounded border border-gray-200">
+                    <!-- ここにJavaScriptで別表現が挿入されます -->
+                </ul>
+            </section>
+
+            <section id="step5" class="feedback-section !border-green-500">
+                <h2 class="text-2xl font-semibold text-green-700 mb-4">5. フィードバック</h2>
+                <div id="feedbackJapanese" class="text-gray-800 space-y-3 p-3 bg-white rounded border border-gray-200">
+                    <p><strong>良かった点：</strong> <span id="feedbackStrengths"></span></p>
+                    <p><strong>内容についての質問：</strong> <span id="feedbackQuestion"></span></p>
+                    <p><strong>次のステップ：</strong> <span id="feedbackNextStep"></span></p>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <script>
+        // DOM要素の取得
+        const studentTextInput = document.getElementById('studentText');
+        const correctButton = document.getElementById('correctButton');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const errorMessageDiv = document.getElementById('errorMessage');
+        const resultsSection = document.getElementById('resultsSection');
+        const topicInput = document.getElementById('writingTopic');
+        const wordCountLimitInput = document.getElementById('wordCountLimit');
+        const wordCounter = document.getElementById('wordCounter');
+
+        const restatedTextDiv = document.getElementById('restatedText');
+        const correctedTextOutputDiv = document.getElementById('correctedTextOutput');
+        const correctionTableBody = document.getElementById('correctionTableBody');
+        const alternativeAnswersList = document.getElementById('alternativeAnswersList');
+        const feedbackStrengthsSpan = document.getElementById('feedbackStrengths');
+        const feedbackQuestionSpan = document.getElementById('feedbackQuestion');
+        const feedbackNextStepSpan = document.getElementById('feedbackNextStep');
+
+        correctButton.addEventListener('click', handleCorrectionRequest);
+        studentTextInput.addEventListener('input', updateWordCount);
+
+        function updateWordCount() {
+            const text = studentTextInput.value;
+            // 空白で区切られた単語を数える。空の文字列は除外する。
+            const wordCount = text.trim() === '' ? 0 : text.trim().split(/\s+/).length;
+            wordCounter.textContent = `${wordCount} words`;
+        }
+
+        async function handleCorrectionRequest() {
+            const studentText = studentTextInput.value.trim();
+            const topic = topicInput.value.trim();
+            const wordCountLimit = wordCountLimitInput.value.trim();
+
+            if (!studentText) {
+                displayError('添削するテキストを入力してください。');
+                return;
+            }
+
+            // UIをローディング状態に更新
+            correctButton.disabled = true;
+            loadingIndicator.style.display = 'block';
+            resultsSection.style.display = 'none';
+            errorMessageDiv.style.display = 'none';
+
+            try {
+                // --- Gemini API呼び出し ---
+                const apiKey = ""; // Canvasが提供するため空のままにします
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+                
+                let promptContext = "";
+                if (topic) {
+                    promptContext += `生徒は「${topic}」というトピックについて書くように指示されました。\n`;
+                }
+                if (wordCountLimit) {
+                    promptContext += `生徒は${wordCountLimit}語以内で書くように指示されました。\n`;
+                }
+                if (promptContext) {
+                    promptContext += "フィードバックを提供する際には、この背景情報も考慮してください。\n";
+                }
+
+
+                const prompt = `あなたはCEFR B2レベルの学習者を専門とする英語講師です。あなたの使う英語は常にB2レベルの範囲内です。また、あなたは外国語学習者が直面する困難を理解し、学習を続けるよう励ます経験豊富なコーチでもあります。
+${promptContext}
+生徒が以下の英文を提出しました:
+\`\`\`
+${studentText}
+\`\`\`
+あなたの目標は、生徒がより良い英作文を書けるように手助けすることです。
+提供されたスキーマに従って、JSON形式で応答を提供してください。
+
+1.  **間違いを太字で再提示 (restated_text_with_errors_bolded):** 生徒の文章をよく読んでください。間違い（単語の使い方、スペル、文法、句読点）を含む部分を特定します。文章を*そのまま*再提示しますが、特定した誤った部分を\`<b>\`と\`</b>\`のHTMLタグで囲んでください。間違いがない場合は、「No errors found in your text.」と記述してください。
+2.  **間違いの修正 (corrected_text):** 単語の使い方、スペル、文法、句読点のみを修正したバージョンのテキストを提供してください。修正後のテキストで使用される言語がB2レベルに適していることを確認してください。間違いが見つからなかった場合、これは元のテキストと同じか、適切であれば少し洗練されたバージョンにすることができます。
+3.  **修正表 (corrections_table):** 各オブジェクトが1つの修正を表すオブジェクトのリストを作成してください。各オブジェクトには以下を含める必要があります：
+    * \`original\`: 生徒のテキストからの不正確なフレーズまたは単語。
+    * \`revised\`: 修正されたフレーズまたは単語。
+    * \`explanation_japanese\`: なぜ修正が必要だったのかについての明確な説明を*日本語で*、文法と単語の用法に焦点を当てて記述してください。間違いがない場合、この配列は空にすることができます。
+4.  **代替表現 (alternative_answers):** 生徒のテキストが特定のアイデアを表現しようとする試み、または暗黙の質問への答えであると仮定して、彼らが主要なアイデアを表現できたであろう他の2〜3の言い方をB2レベルに適した形で提供してください。これらは修正されたテキストとは異なるものにしてください。
+5.  **フィードバック (feedback_japanese):** 生徒への短いフィードバックメッセージを*日本語で*書いてください。
+    * \`strengths\`: 彼らの文章の長所を1つか2つ強調してください（例：「語彙の選択が良いですね」や「アイデアが明確です」）。もしトピックが設定されていれば内容がトピックに沿っているか、語数制限が設定されていればそれを守れているかについても、ここに含めてください。
+    * \`content_question\`: より深い思考を促すために、彼らのテキストの*内容*について洞察に満ちた質問を1つしてください（例：「この経験から他に学んだことはありますか？」）。
+    * \`next_step\`: 彼らがアカデミックな英作文を向上させるために集中すべき、小さくて達成可能な次のステップを1つ提案してください（例：「次は、接続詞を効果的に使ってみましょう」）。
+    生徒が達成したことに焦点を当て、励ますようにしてください。`;
+
+                const payload = {
+                    contents: [{ role: "user", parts: [{ text: prompt }] }],
+                    generationConfig: {
+                        responseMimeType: "application/json",
+                        responseSchema: {
+                            type: "OBJECT",
+                            properties: {
+                                "restated_text_with_errors_bolded": { "type": "STRING" },
+                                "corrected_text": { "type": "STRING" },
+                                "corrections_table": {
+                                    "type": "ARRAY",
+                                    "items": {
+                                        "type": "OBJECT",
+                                        "properties": {
+                                            "original": { "type": "STRING" },
+                                            "revised": { "type": "STRING" },
+                                            "explanation_japanese": { "type": "STRING" }
+                                        },
+                                        "required": ["original", "revised", "explanation_japanese"]
+                                    }
+                                },
+                                "alternative_answers": {
+                                    "type": "ARRAY",
+                                    "items": { "type": "STRING" }
+                                },
+                                "feedback_japanese": {
+                                    "type": "OBJECT",
+                                    "properties": {
+                                        "strengths": { "type": "STRING" },
+                                        "content_question": { "type": "STRING" },
+                                        "next_step": { "type": "STRING" }
+                                    },
+                                    "required": ["strengths", "content_question", "next_step"]
+                                }
+                            },
+                            "required": [
+                                "restated_text_with_errors_bolded",
+                                "corrected_text",
+                                "corrections_table",
+                                "alternative_answers",
+                                "feedback_japanese"
+                            ]
+                        }
+                    }
+                };
+                
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const errorBody = await response.text();
+                    throw new Error(`APIリクエストが失敗しました。ステータス: ${response.status}: ${errorBody}`);
+                }
+
+                const result = await response.json();
+                
+                if (result.candidates && result.candidates.length > 0 &&
+                    result.candidates[0].content && result.candidates[0].content.parts &&
+                    result.candidates[0].content.parts.length > 0) {
+                    const rawJsonText = result.candidates[0].content.parts[0].text;
+                    const parsedData = JSON.parse(rawJsonText);
+                    displayResults(parsedData);
+                } else {
+                    console.error("予期しないAPIレスポンス構造:", result);
+                    if (result.promptFeedback && result.promptFeedback.blockReason) {
+                         throw new Error(`APIリクエストがブロックされました。理由: ${result.promptFeedback.blockReason}${result.promptFeedback.blockReasonMessage ? ' - ' + result.promptFeedback.blockReasonMessage : ''}`);
+                    }
+                    throw new Error("APIから有効なコンテンツを取得できませんでした。レスポンスの構造が予期しないものでした。");
+                }
+
+            } catch (error) {
+                console.error('添削処理中にエラーが発生しました:', error);
+                displayError(`エラーが発生しました: ${error.message}。もう一度お試しください。問題が解決しない場合は、コンソールで詳細を確認してください。`);
+            } finally {
+                // ボタンを再度有効にし、ローディングインジケーターを非表示にする
+                correctButton.disabled = false;
+                loadingIndicator.style.display = 'none';
+            }
+        }
+
+        function displayResults(data) {
+            // ステップ1: 再提示されたテキスト
+            restatedTextDiv.innerHTML = data.restated_text_with_errors_bolded || "AIからテキストが提供されませんでした。";
+
+            // ステップ2: 修正後のテキスト
+            correctedTextOutputDiv.textContent = data.corrected_text || "AIから修正済みテキストが提供されませんでした。";
+
+            // ステップ3: 修正表
+            correctionTableBody.innerHTML = ''; // 前回の結果をクリア
+            if (data.corrections_table && data.corrections_table.length > 0) {
+                data.corrections_table.forEach(item => {
+                    const row = correctionTableBody.insertRow();
+                    row.insertCell().textContent = item.original;
+                    row.insertCell().textContent = item.revised;
+                    row.insertCell().textContent = item.explanation_japanese;
+                });
+            } else {
+                const row = correctionTableBody.insertRow();
+                const cell = row.insertCell();
+                cell.colSpan = 3;
+                cell.textContent = 'AIによって特定の修正点はリストされませんでした。';
+                cell.classList.add('text-center', 'text-gray-500', 'py-4');
+            }
+
+            // ステップ4: 代替表現
+            alternativeAnswersList.innerHTML = ''; // 前回の結果をクリア
+            if (data.alternative_answers && data.alternative_answers.length > 0) {
+                data.alternative_answers.forEach(answer => {
+                    const listItem = document.createElement('li');
+                    listItem.textContent = answer;
+                    alternativeAnswersList.appendChild(listItem);
+                });
+            } else {
+                const listItem = document.createElement('li');
+                listItem.textContent = 'AIから代替表現は提供されませんでした。';
+                listItem.classList.add('text-gray-500');
+                alternativeAnswersList.appendChild(listItem);
+            }
+            
+            // ステップ5: フィードバック（日本語）
+            if (data.feedback_japanese) {
+                feedbackStrengthsSpan.textContent = data.feedback_japanese.strengths || 'N/A';
+                feedbackQuestionSpan.textContent = data.feedback_japanese.content_question || 'N/A';
+                feedbackNextStepSpan.textContent = data.feedback_japanese.next_step || 'N/A';
+            } else {
+                 feedbackStrengthsSpan.textContent = 'フィードバックがありません。';
+                 feedbackQuestionSpan.textContent = '';
+                 feedbackNextStepSpan.textContent = '';
+            }
+
+            resultsSection.style.display = 'block';
+            // 結果までスムーズにスクロール
+            resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function displayError(message) {
+            errorMessageDiv.textContent = message;
+            errorMessageDiv.style.display = 'block';
+            resultsSection.style.display = 'none'; // エラー発生時は結果を隠す
+        }
+
+    </script>
+</body>
+</html>
